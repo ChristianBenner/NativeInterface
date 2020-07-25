@@ -14,7 +14,11 @@ namespace NativeInterface
     {
         // NativeType Call<type>MethodA(JNIEnv *env, jobject obj, jmethodID methodID, const jvalue* args)
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        public delegate void CallStaticVoidMethod(IntPtr env, IntPtr clazz, IntPtr methodID, long* args);
+        public delegate void CallStaticVoidMethod(IntPtr env, IntPtr obj, IntPtr methodID, long* args);
+
+        // NativeType Call<type>MethodA(JNIEnv* env, jobject obj, jmethodID methodID, const jvalue* args);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate void CallVoidMethodA(IntPtr env, IntPtr obj, IntPtr methodID, long* args);
 
         // jobject NewGlobalRef(JNIEnv *env, jobject obj);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
@@ -27,6 +31,14 @@ namespace NativeInterface
         // void DeleteGlobalRef(JNIEnv *env, jobject globalRef);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         internal delegate void DeleteGlobalRef(IntPtr env, IntPtr globalRef);
+
+        // jclass GetObjectClass(JNIEnv *env, jobject obj);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        internal delegate IntPtr GetObjectClass(IntPtr env, IntPtr obj);
+
+        // jobject NewObjectA(JNIEnv *env, jclass clazz, jmethodID methodID, const jvalue* args);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        internal delegate IntPtr NewObjectA(IntPtr env, IntPtr clazz, IntPtr methodID, long* args);
 
         // jclass FindClass(JNIEnv *env, const char *name);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
@@ -62,14 +74,6 @@ namespace NativeInterface
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         internal delegate void ExceptionDescribe(IntPtr env);
 
-        // jclass GetObjectClass(JNIEnv *env, jobject obj);
-        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        internal delegate IntPtr GetObjectClass(IntPtr env, IntPtr obj);
-
-        // NativeType Call<type>MethodA(JNIEnv *env, jobject obj, jmethodID methodID, const jvalue* args)
-        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        internal delegate IntPtr CallObjectMethod(IntPtr env, IntPtr obj, IntPtr methodID, long* args);
-
         // const jchar * GetStringChars(JNIEnv *env, jstring string, jboolean* isCopy);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         internal delegate IntPtr GetStringChars(IntPtr env, IntPtr stringPtr, byte* isCopy);
@@ -103,6 +107,7 @@ namespace NativeInterface
         internal DeleteLocalRef deleteLocalRef;
         internal DeleteGlobalRef deleteGlobalRef;
         internal GetObjectClass getObjectClass;
+        internal NewObjectA newObject;
         internal NewStringUTF newStringUTF;
         internal GetStringChars getStringChars;
         internal ReleaseStringChars releaseStringChars;
@@ -113,6 +118,7 @@ namespace NativeInterface
         internal GetStaticMethodId getStaticMethodId;
         internal GetMethodID getMethodID;
         internal CallStaticVoidMethod callStaticVoidMethod;
+        internal CallVoidMethodA callVoidMethod;
         internal ExceptionCheck exceptionCheck;
         internal ExceptionClear exceptionClear;
         internal ExceptionOccurred exceptionOccurred;
@@ -128,6 +134,7 @@ namespace NativeInterface
             deleteLocalRef = (DeleteLocalRef)Marshal.GetDelegateForFunctionPointer(javaNativeInterface.DeleteLocalRef, typeof(DeleteLocalRef));
             deleteGlobalRef = (DeleteGlobalRef)Marshal.GetDelegateForFunctionPointer(javaNativeInterface.DeleteGlobalRef, typeof(DeleteGlobalRef));
             getObjectClass = (GetObjectClass)Marshal.GetDelegateForFunctionPointer(javaNativeInterface.GetObjectClass, typeof(GetObjectClass));
+            newObject = (NewObjectA)Marshal.GetDelegateForFunctionPointer(javaNativeInterface.NewObjectA, typeof(NewObjectA));
 
             // String conversion delegates
             newStringUTF = (NewStringUTF)Marshal.GetDelegateForFunctionPointer(javaNativeInterface.NewStringUTF, typeof(NewStringUTF));
@@ -142,6 +149,7 @@ namespace NativeInterface
             getStaticMethodId = (GetStaticMethodId)Marshal.GetDelegateForFunctionPointer(javaNativeInterface.GetStaticMethodID, typeof(GetStaticMethodId));
             getMethodID = (GetMethodID)Marshal.GetDelegateForFunctionPointer(javaNativeInterface.GetMethodID, typeof(GetMethodID));
             callStaticVoidMethod = (CallStaticVoidMethod)Marshal.GetDelegateForFunctionPointer(javaNativeInterface.CallStaticVoidMethod, typeof(CallStaticVoidMethod));
+            callVoidMethod = (CallVoidMethodA)Marshal.GetDelegateForFunctionPointer(javaNativeInterface.CallVoidMethodA, typeof(CallVoidMethodA));
 
             // Exception delegates
             exceptionCheck = (ExceptionCheck)Marshal.GetDelegateForFunctionPointer(javaNativeInterface.ExceptionCheck, typeof(ExceptionCheck));

@@ -273,7 +273,7 @@ namespace NativeInterface
         }
 
         // Uses map so that the class only has to be fetched once
-        private IntPtr FindClass(string clazz)
+        public IntPtr FindClass(string clazz)
         {
             // Pointer to class
             IntPtr classGlobalRef;
@@ -321,6 +321,62 @@ namespace NativeInterface
             // Method could not be found, throw error
             if (methodPtr == IntPtr.Zero)
             {
+                throw new Exception("Error: Could not find static method '" + method + "' with args '" + arguments +
+                    "' in class '" + clazz + "'");
+            }
+
+            return new JavaMethod
+            {
+                clazz = classGlobalRef,
+                method = methodPtr
+            };
+        }
+
+        public IntPtr CreateObject(string clazz)
+        {
+            return CreateObject(clazz, "()V", null);
+        }
+
+        public IntPtr CreateObject(string clazz, string constructorArgumentFormat, long* constructorArguments)
+        {
+            // Find the constructor in the sensor data class
+            JavaMethod methodInfo = GetMethod(clazz, "<init>", constructorArgumentFormat);
+
+            // Call the constructor
+            IntPtr objectRef = nativeMethods.newObject(jniInterface, methodInfo.clazz, methodInfo.method, constructorArguments);
+            
+            // Global ref could not be created, throw error
+            if (objectRef == IntPtr.Zero)
+            {
+                throw new Exception("Error: Could not create object of type '" + clazz + "'");
+            }
+
+            // Object global ref
+            IntPtr objectGlobalRef = nativeMethods.newGlobalRef(jniInterface, objectRef);
+
+            // Global ref could not be created, throw error
+            if (objectGlobalRef == IntPtr.Zero)
+            {
+                throw new Exception("Error: Could not create a global reference object of type '" + clazz + "'");
+            }
+
+            // Delete local reference
+            nativeMethods.deleteLocalRef(jniInterface, objectRef);
+
+            return objectGlobalRef;
+        }
+
+        public JavaMethod GetMethod(string clazz, string method, string arguments)
+        {
+            // Load the class
+            IntPtr classGlobalRef = FindClass(clazz);
+
+            // Get method from class global reference
+            IntPtr methodPtr = nativeMethods.getMethodID(jniInterface, classGlobalRef, method, arguments);
+
+            // Method could not be found, throw error
+            if (methodPtr == IntPtr.Zero)
+            {
                 throw new Exception("Error: Could not find method '" + method + "' with args '" + arguments +
                     "' in class '" + clazz + "'");
             }
@@ -340,6 +396,17 @@ namespace NativeInterface
         public void CallStaticVoidMethod(JavaMethod methodInfo, long* args)
         {
             nativeMethods.callStaticVoidMethod(jniInterface, methodInfo.clazz, methodInfo.method, args);
+            checkForJNIException();
+        }
+
+        public void CallVoidMethod(IntPtr objectRef, JavaMethod methodInfo)
+        {
+            CallVoidMethod(objectRef, methodInfo, null);
+        }
+
+        public void CallVoidMethod(IntPtr objectRef, JavaMethod methodInfo, long* args)
+        {
+            nativeMethods.callVoidMethod(jniInterface, objectRef, methodInfo.method, args);
             checkForJNIException();
         }
 
