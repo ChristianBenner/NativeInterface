@@ -22,6 +22,17 @@ namespace NativeInterface
             };
         }
 
+        public static unsafe NativeJavaMethod DescribeNativeVoidMethod(string name,
+            Delegate methodDelegate)
+        {
+            return new NativeJavaMethod
+            {
+                name = (IntPtr)convertStringToUtf8(name),
+                signature = (IntPtr)convertStringToUtf8("()V"),
+                funcPtr = Marshal.GetFunctionPointerForDelegate(methodDelegate)
+            };
+        }
+
         // Converts to UTF-8 string and adds a null terminator
         private unsafe static sbyte* convertStringToUtf8(string theString)
         {

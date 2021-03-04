@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
@@ -75,12 +76,7 @@ namespace NativeInterface
 
         public Jvm(string jvmPath, int jniVersion, List<string> options)
         {
-            // Check if jvm path was provided
-            if(jvmPath == null)
-            {
-                // Throw an exception
-                throw new ArgumentException("Error: Cannot create Java Virtual Machine because no JVM path has been provided");
-            }
+            validateJvmPath(jvmPath);
 
             // If no options where provided, throw no arguments error. Otherwise throw error including arguments
             if (options == null || options.Count == 0)
@@ -89,6 +85,19 @@ namespace NativeInterface
                 throw new ArgumentException("Error: Cannot create Java Virtual Machine because no arguments have been provided");
             }
             
+            checkClassPathProvided(options);
+            loadJvmDll(jvmPath);
+            createJavaVM(jniVersion, options);
+            attachThreadToJVM();
+        }
+
+        public Jvm(string jvmPath, int jniVersion, string jarPath)
+        {
+            validateJvmPath(jvmPath);
+
+            List<string> options = new List<string>();
+            options.Add("-Djava.class.path=" + jarPath);
+
             checkClassPathProvided(options);
             loadJvmDll(jvmPath);
             createJavaVM(jniVersion, options);
@@ -105,6 +114,22 @@ namespace NativeInterface
 
             // Destroy Java Virtual Machine
             JvmMethods.JNI_DestroyJavaVM();
+        }
+
+        public void validateJvmPath(string jvmPath)
+        {
+            // Check if jvm path was provided
+            if (jvmPath == null || jvmPath.Length == 0)
+            {
+                // Throw an exception
+                throw new ArgumentException("Error: Cannot create Java Virtual Machine because no JVM path has been provided (jvm.dll not found)");
+            }
+
+            // Check if the JVM dll exists at path
+            if(!File.Exists(jvmPath))
+            {
+                throw new ArgumentException("Error: Cannot create Java Virtual Machine because jvm.dll does not exist in path: '" + jvmPath + "'");
+            }
         }
 
         public string JavaStringPtrToUtf8String(IntPtr stringPtr)
@@ -134,6 +159,63 @@ namespace NativeInterface
             }
 
             return utf8String;
+        }
+
+        public IntPtr StringToJavaStringPtr(string theString)
+        {
+            return nativeMethods.newStringUTF(jniInterface, Marshal.StringToHGlobalUni(theString));
+        }
+
+
+        /// <summary>
+        /// Convert string to unmanaged byte array.
+        /// </summary>
+        /// <param name="str">String.</param>
+        /// <returns>Unmanaged byte array.</returns>
+        public static unsafe sbyte* StringToUtf8Unmanaged(string str)
+        {
+            var ptr = IntPtr.Zero;
+
+            if (str != null)
+            {
+                byte[] strBytes = Encoding.UTF8.GetBytes(str);
+
+                ptr = Marshal.AllocHGlobal(strBytes.Length + 1);
+
+                Marshal.Copy(strBytes, 0, ptr, strBytes.Length);
+
+                *((byte*)ptr.ToPointer() + strBytes.Length) = 0; // NULL-terminator.
+            }
+
+            return (sbyte*)ptr.ToPointer();
+        }
+
+
+        /// <summary>
+        /// Creates new jstring from UTF chars.
+        /// </summary>
+        private IntPtr NewStringUtf(sbyte* utf)
+        {
+            var res = nativeMethods.newStringUTF(jniInterface, new IntPtr(utf));
+            checkForJNIException();
+
+            IntPtr globalRef = nativeMethods.newGlobalRef(jniInterface, res);
+            nativeMethods.deleteLocalRef(jniInterface, res);
+            return globalRef;
+        }
+
+        public IntPtr NewStringUtf(string str)
+        {
+            var chars = StringToUtf8Unmanaged(str);
+
+            try
+            {
+                return NewStringUtf(chars);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(new IntPtr(chars));
+            }
         }
 
         // Load the Java Virtual Machine DLL
@@ -244,7 +326,16 @@ namespace NativeInterface
                 // Check if the option is a class path type
                 if (option.StartsWith(EXPECTED_CLASS_PATH_OPTION_STRING))
                 {
-                    foundClassPathOption = true;
+                    // Now check that the file provided in the class path actually exists
+                    string jarFile = option.Substring(EXPECTED_CLASS_PATH_OPTION_STRING.Length);
+                    if(File.Exists(jarFile))
+                    {
+                        foundClassPathOption = true;
+                    }
+                    else
+                    {
+                        throw new ArgumentException("Error: Cannot create Java Virtual Machine because JAR on class path could not be found: '" + jarFile + "'");
+                    }
                 }
             }
 
@@ -270,6 +361,11 @@ namespace NativeInterface
 
             // Retrieve the JNI Native Methods
             nativeMethods = new JniNativeMethods(jniInterface);
+        }
+
+        public void AttachCurrentThread()
+        {
+            attachThreadToJVM();
         }
 
         // Uses map so that the class only has to be fetched once
@@ -332,6 +428,11 @@ namespace NativeInterface
             };
         }
 
+        public JavaMethod GetStaticVoidMethod(string clazz, string method)
+        {
+            return GetStaticMethod(clazz, method, "()V");
+        }
+
         public IntPtr CreateObject(string clazz)
         {
             return CreateObject(clazz, "()V", null);
@@ -373,7 +474,7 @@ namespace NativeInterface
 
             // Get method from class global reference
             IntPtr methodPtr = nativeMethods.getMethodID(jniInterface, classGlobalRef, method, arguments);
-
+            
             // Method could not be found, throw error
             if (methodPtr == IntPtr.Zero)
             {
@@ -386,6 +487,11 @@ namespace NativeInterface
                 clazz = classGlobalRef,
                 method = methodPtr
             };
+        }
+
+        public JavaMethod GetVoidMethod(string clazz, string method)
+        {
+            return GetMethod(clazz, method, "()V");
         }
 
         public void CallStaticVoidMethod(JavaMethod methodInfo)
